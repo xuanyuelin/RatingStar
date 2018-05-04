@@ -13,18 +13,23 @@ class RatingBar: UIView {
     var starNumber:Int = 5
     //星星之间的间距，默认为5
     var starMagin:CGFloat = 5.0
+    //只读的，手势无效
+    var readable:Bool = false
     
-    let backStarView = UIView()
-    let frontStarView = UIView()
-    var frameShapeLayer:CAShapeLayer = {
+    private let backStarView = UIView()
+    private let frontStarView = UIView()
+    private lazy var frameShapeLayer:CAShapeLayer = {
         let shapelayer = CAShapeLayer()
         let path = UIBezierPath(rect: CGRect.zero)
         shapelayer.path = path.cgPath
         return shapelayer
     }()
-    var drawn:Bool = false
+    private var drawn:Bool = false
     //评分值
     private var value:Float = 0
+    //星星的分段区间
+    private var segements:Array<(CGFloat,CGFloat)> = []
+    private var starWid:CGFloat = 0
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -56,7 +61,7 @@ class RatingBar: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         if !drawn {//只添加一次
-            let starWid = floor((self.frame.size.width-starMagin*(CGFloat)(starNumber-1))/(CGFloat)(starNumber))
+            starWid = floor((self.frame.size.width-starMagin*(CGFloat)(starNumber-1))/(CGFloat)(starNumber))
             let starHeight = min(starWid, self.frame.size.height)
             let darkStar = UIImage(named: "ic_ratingbar_star_dark")
             let lightStar = UIImage(named: "ic_ratingbar_star_light")
@@ -72,13 +77,39 @@ class RatingBar: UIView {
                 frontStarView.addSubview(lightImgView)
             }
             drawn = true
+            //初始化分段区间
+            for i in 0..<starNumber {
+                let minX = (starWid+starMagin)*CGFloat(i)
+                let maxX = minX+starWid
+                segements.append((minX,maxX))
+            }
+        }
+        if readable {
+            if value < 0 || value > Float(starNumber) {return}
+            let intValue = Int(value)
+            let dotValue = value - Float(intValue)
+            var ptx:CGFloat = 0
+            if intValue == starNumber {
+                ptx = segements[starNumber-1].1
+            }else {
+                ptx = segements[intValue].0+starWid*CGFloat(dotValue)
+            }
+            //构造路径
+            let path = UIBezierPath()
+            path.move(to: CGPoint.zero)
+            path.addLine(to: CGPoint(x: ptx, y: 0))
+            path.addLine(to: CGPoint(x: ptx, y: self.frame.size.height))
+            path.addLine(to: CGPoint(x: 0, y: self.frame.size.height))
+            path.close()
+            self.frameShapeLayer.path = path.cgPath
         }
     }
     
     @objc func tapAction(gesture:UITapGestureRecognizer) {
+        if readable {return}
         let pt = gesture.location(in: self)
-        let path = UIBezierPath()
         //构造路径
+        let path = UIBezierPath()
         path.move(to: CGPoint.zero)
         path.addLine(to: CGPoint(x: pt.x, y: 0))
         path.addLine(to: CGPoint(x: pt.x, y: self.frame.size.height))
@@ -86,13 +117,6 @@ class RatingBar: UIView {
         path.close()
         self.frameShapeLayer.path = path.cgPath
         //计算评分
-        let starWid = floor((self.frame.size.width-starMagin*(CGFloat)(starNumber-1))/(CGFloat)(starNumber))
-        var segements = Array<(CGFloat,CGFloat)>()
-        for i in 0..<starNumber {
-            let minX = (starWid+starMagin)*CGFloat(i)
-            let maxX = minX+starWid
-            segements.append((minX,maxX))
-        }
         for i in 0..<starNumber {
             let (a,b) = segements[i]
             if pt.x > b {continue}
@@ -108,5 +132,10 @@ class RatingBar: UIView {
     
     func getValue()->Float {
         return value
+    }
+    //通过评分来显示星星
+    func setRatingValue(value:Float) {
+        self.value = value
+        self.setNeedsLayout()
     }
 }
